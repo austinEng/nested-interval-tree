@@ -1,0 +1,21 @@
+{
+  "name": "nested-interval-tree",
+  "description": "Mongoose plugin to support nested interval trees",
+  "version": "0.0.0",
+  "author": "Austin Eng",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/austinEng/nested-interval-tree"
+  },
+  "scripts": {
+    "test": "mocha ./test/test.js"
+  },
+  "devDependencies": {
+    "mocha": "^2.2.5",
+    "should": "^6.0.3"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "mongoose": "^4.0.5"
+  }
+}
