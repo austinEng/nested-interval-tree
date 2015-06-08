@@ -1,12 +1,12 @@
 'use strict';
 
-var Schema = require('mongoose').Schema;
+var mongoose = require('mongoose');
+var Schema = mongoose.Schema;
 var IntervalTree = require('interval-tree-1d');
 var async = require('async');
 
 module.exports = exports = function nestedIntervalTree (schema, options) {
   var DELIMITER = options && options.delimiter || '\\';
-
   schema.add({
     _parent: { // parent node
       type: Schema.ObjectId,
@@ -28,8 +28,7 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
     _root: Boolean,
     name_path: {
       type: String,
-      trim: true,
-      index: true
+      trim: true
     },
     name: {
       type: String,
@@ -53,7 +52,7 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
 
   var hasIntervalTree = function(node) {
     var hasTree = false;
-    for (var key in par.intervalTree) {
+    for (var key in node.intervalTree) {
       hasTree = true;
       break;
     }
@@ -135,6 +134,19 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
       return next();
     }
   });
+
+  schema.statics.initialize = function (model, cb) {
+    var node = new model({
+      _root: true,
+      intervalTree: IntervalTree([]),
+      name: "root"
+    });
+    node.save(function (err) {
+      if (err) return cb(err, null);
+      model.root = node;
+      return cb(null, node);
+    });
+  }
 
   var getOverlappingIds = function(cb) {
     var ids = [];
@@ -230,56 +242,61 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
           left = +segment;
           right = +segment;
         } else {
-          left = range[0];
-          right = range[1];
+          left = +range[0];
+          right = +range[1];
         }
         for (var i = 0; i < intervals.length; i++) {
           if (intervals[i][0] == left && intervals[i][1] == right) {
-            this.model(this.constructor.modelName).findOne({ _id : intervals[i][2] }, function (err, node) {
+            node.model(node.constructor.modelName).findOne({ _id : intervals[i][2] }, function (err, node) {
               if (err) return cb(err, null);
               return followPath(node, segments, cb);
             });
           }
         }
+        segments.unshift(segment);
+        return cb(null, false, node, segments);
       } else {
+        segments.unshift(segment);
         return cb(null, false, node, segments);
       }
     } else {
       for (var i = 0; i < node._childrenNames.length; i++) {
         if (node._childrenNames[i] == segment) {
-          this.model(this.constructor.modelName).findOne({ _id : this._children[i] }, function (err, node) {
+          node.model(node.constructor.modelName).findOne({ _id : this._children[i] }, function (err, node) {
             if (err) return cb(err, null);
             return followPath(node, segments, cb);
           });
         }
       }
+      segments.unshift(segment);
       return cb(null, false, node, segments);
     }
   }
 
-  schema.statics.findPath = function (path, cb) {
+  schema.statics.findPath = function (model, path, cb) {
     var segments = path.split(DELIMITER);
-    var stringComp = ["root"];
+    return followPath(model.root, segments, cb);
+    /*var stringComp = ["root"];
     while (segments.length > 0) {
       var segment = segments[0];
       if (!isNumber(segment) && !isNumberRange(segment)) {
-        stringComp = stringComp.push(segments.shift());
+        stringComp.push(segments.shift());
       } else {
         break;
       }
     }
     stringComp = stringComp.join(DELIMITER);
-    this.model(this.constructor.modelName).findOne({name_path: stringComp}, function (err, node) {
+    model.findOne({name_path: stringComp}, function (err, node) {
       if (err) return cb(err, null);
       if (segments.length == 0) return cb(null, node);
       return followPath(node, segments, cb);
-    });
+    });*/
   }
 
   var followAndCreatePath = function (last, remaining, cb) {
     if (remaining.length == 0) return cb(null, last);
     var segment = remaining.shift();
-    var node = new this({
+    var node = new last.constructor({
       name: segment
     });
     last.addChild(node, function (err) {
@@ -288,11 +305,11 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
     });
   }
 
-  schema.statics.createPath = function (path, cb) {
-    schema.statics.findPath(path, function (err, node, last, remaining) {
+  schema.statics.createPath = function (model, path, cb) {
+    schema.statics.findPath(model, path, function (err, node, last, remaining) {
       if (err) return cb(err, null);
       if (node) {
-        this.model(this.constructor.modelName).findOne({_id: node._parent}, function (err, par) {
+        model.findOne({_id: node._parent}, function (err, par) {
           if (err) return cb(err, null);
           par.addChild(node, function (err) {
             if (err) return cb(err, null);
@@ -324,11 +341,13 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
       function(callback) {
         par.save(function (err) {
           if (err) return cb(err);
+          callback();
         });
       },
       function(callback) {
         node.save(function (err) {
           if (err) return cb(err);
+          callback();
         });
       }
     ], function (err, results) {
@@ -337,16 +356,16 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
     });
   }
 
-  schema.statics.findOrCreatePath = function (path, cb) {
-    schema.statics.findPath(path, function (err, node, last, remaining) {
+  schema.statics.findOrCreatePath = function (model, path, cb) {
+    schema.statics.findPath(model, path, function (err, node, last, remaining) {
       if (err) return cb(err, null);
       if (node) return cb(null, node);
       if (last) return followAndCreatePath(last, remaining, cb);
     });
   }
 
-  schema.statics.removePath = function (path, cb) {
-    schema.statics.findPath(path, function (err, node, last, remaining) {
+  schema.statics.removePath = function (model, path, cb) {
+    schema.statics.findPath(model, path, function (err, node, last, remaining) {
       if (err) return cb(err);
       if (node) return node.remove(cb);
     });
