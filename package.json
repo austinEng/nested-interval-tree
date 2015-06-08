@@ -11,11 +11,13 @@
     "test": "mocha ./test/test.js"
   },
   "devDependencies": {
-    "mocha": "^2.2.5",
-    "should": "^6.0.3"
+    "chai": "^3.0.0",
+    "chai-things": "^0.2.0",
+    "mocha": "^2.2.5"
   },
   "license": "MIT",
   "dependencies": {
+    "interval-tree-1d": "^1.0.3",
     "mongoose": "^4.0.5"
   }
 }

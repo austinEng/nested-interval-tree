@@ -11,26 +11,26 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
     _parent: { // parent node
       type: Schema.ObjectId,
       index: true
-    }
+    },
     _children: [Schema.ObjectId], // children nodes
-    _childrenNames: [String]
+    _childrenNames: [String],
     _intervalTreeParent: {
       type: Schema.ObjectId,
       index: true
-    }
-    _left: Number
-    _right: Number
-    intervalTree: {}
+    },
+    _left: Number,
+    _right: Number,
+    intervalTree: {},
     _path: { // path to the node in the tree
       type: String,
       index: true
-    }
-    _root: Boolean
+    },
+    _root: Boolean,
     name_path: {
       type: String,
       trim: true,
       index: true
-    }
+    },
     name: {
       type: String,
       trim: true
@@ -61,7 +61,8 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
   }
 
   schema.pre('save', function (next) {
-    var continueSave = function(root) {
+    var that = this;
+    var continueSave = (function (root) {
       if (root) {
         if (isNumber(this.name)) {
           this._parent = root._id;
@@ -71,41 +72,51 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
             if (err) return next(err);
             return continueSave2(root);
           });
-        } else if (range = isNumberRange(this.name)) {
+        } else if (isNumberRange(this.name)) {
+          var range = isNumberRange(this.name);
           this._parent = root._id;
-          root.intervalTree.insert([range[0], range[1], this._id]);
+          root.intervalTree.insert([+range[0], +range[1], this._id]);
           root.markModified('intervalTree');
+          root.save(function (err) {
+            if (err) return next(err);
+            return continueSave2(root);
+          });
+        } else {
+          this._parent = root._id;
+          root._children.push(this._id);
+          root._childrenNames.push(this.name);
           root.save(function (err) {
             if (err) return next(err);
             return continueSave2(root);
           });
         }
       } else {
-        this.model(this.constructor.modelName).findOne({_id: this._parent}, function (err, node) {
+        this.model(this.constructor.modelName).findOne({_id: this._parent}, function (err, node) {;
           if (err) return next(err);
           return continueSave2(node);
         });
       }
-    }
+    }).bind(this);
 
-    var continueSave2 = function (parent) {
+    var continueSave2 = (function (parent) {
       this._path = parent._path + DELIMITER + this._id;
       this.name_path = parent.name_path + DELIMITER + this.name;
       if (isNumber(this.name)) {
         this._left = this._right = +this.name;
-      } else if (range = isNumberRange(this.name)) {
+      } else if (isNumberRange(this.name)) {
+        var range = isNumberRange(this.name);
         this._left = range[0];
         this._right = range[1];
       }
       next();
-    }
+    }).bind(this);
 
     if (!this._root) {
       this.model(this.constructor.modelName).findOne({}, function (err, node) {
         if (err) return next(err);
         if (!node) {
           // create root document
-          var node = new this({
+          var node = new that.constructor({
             _root: true,
             intervalTree: IntervalTree([]),
             name: "root"
@@ -119,7 +130,9 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
         }
       });
     } else {
-      return continueSave();
+      this._path = this._id;
+      this.name_path = this.name;
+      return next();
     }
   });
 
@@ -343,7 +356,7 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
     count = 0;
     count += node._children.length;
     if (hasIntervalTree(node)) {
-      count += node.intervalTree.intervals.length;
+      count += node.intervalTree.root.count;
     }
     return count;
   }
