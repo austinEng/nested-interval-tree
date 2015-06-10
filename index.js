@@ -98,8 +98,10 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
     }).bind(this);
 
     var continueSave2 = (function (parent) {
-      this._path = parent._path + DELIMITER + this._id;
-      this.name_path = parent.name_path + DELIMITER + this.name;
+      if (parent) {
+        this._path = parent._path + DELIMITER + this._id;
+        this.name_path = parent.name_path + DELIMITER + this.name;
+      }
       if (isNumber(this.name)) {
         this._left = this._right = +this.name;
       } else if (isNumberRange(this.name)) {
@@ -148,22 +150,144 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
     });
   }
 
-  var getOverlappingIds = function(cb) {
+  function reportLeftRange(arr, hi, intervalCB, finishCB) {
+    var fns = [];
+    for(var i=0; i<arr.length && arr[i][0] <= hi; ++i) {
+      fns.push(function (finish) { intervalCB(arr[i], finish)});
+    }
+    async.parallel(fns, function (err, nodes) {
+      if (err) return finishCB(err, null);
+      return finishCB(null, nodes);
+    });
+  }
+
+  function reportRightRange(arr, lo, intervalCB, finishCB) {
+    var fns = [];
+    for(var i=arr.length-1; i>=0 && arr[i][1] >= lo; --i) {
+      fns.push(function (finish) { intervalCB(arr[i], finish)});
+    }
+    async.parallel(fns, function (err, nodes) {
+      if (err) return finishCB(err, null);
+      return finishCB(null, nodes);
+    });
+  }
+
+  function reportRange(arr, intervalCB, finishCB) {
+    var fns = [];
+    for(var i=0; i<arr.length; ++i) {
+      fns.push(function (finish) {intervalCB(arr[i-1], finish)});
+    }
+    async.parallel(fns, function (err, nodes) {
+      if (err) return finishCB(err, null);
+      return finishCB(null, nodes);
+    });
+  }
+
+
+  var queryInterval = function(intervalNode, lo, hi, intervalCB, finishCB) {
+    if (!intervalNode) {
+      return finishCB(null, []);
+    }
+    var fns = [];
+    if (lo < intervalNode.mid && intervalNode.left) {
+      fns.push(function (finish) {
+        queryInterval(intervalNode.left, lo, hi, intervalCB, function (err, nodes) {
+          if (err) return finish(err, null);
+          return finish(null, nodes);
+        }
+      )});
+    }
+    if (hi > intervalNode.mid && intervalNode.right) {
+      fns.push(function (finish) {
+        queryInterval(intervalNode.right, lo, hi, intervalCB, function (err, nodes) {
+          if (err) return finish(err, null);
+          return finish(null, nodes);
+        });
+      });
+    }
+    if (hi < intervalNode.mid) {
+      fns.push(function (finish) {
+        reportLeftRange(intervalNode.leftPoints, hi, intervalCB, function (err, nodes) {
+          if (err) return finish(err, null);
+          return finish(null, nodes);
+        });
+      });
+    } else if (lo > intervalNode.mid) {
+      fns.push(function (finish) {
+        reportRightRange(intervalNode.rightPoints, lo, intervalCB, function (err, nodes) {
+          if (err) return finish(err, null);
+          return finish(null, nodes);
+        });
+      });
+    } else {
+      fns.push(function (finish) {
+        reportRange(intervalNode.leftPoints, intervalCB, function (err, nodes) {
+          if (err) return finish(err, null);
+          return finish(null, nodes);
+        });
+      });
+    }
+    async.parallel(fns, function (err, nodes) {
+      if (err) return finishCB(err, null);
+      nodes = nodes.reduce(function (a, b) {
+        return a.concat(b);
+      });
+      return finishCB(null, nodes);
+    });
+  }
+
+  var getOverlappingIds = function(node, cb) {
     var ids = [];
-    this.model(this.constructor.modelName).findOne({_id: this._parent}, function (err, par) {
+    var fns = [];
+    if (hasIntervalTree(node)) {
+      fns.push(function (callback) {
+        queryInterval(node.intervalTree.root, Number.MIN_VALUE, Number.MAX_VALUE, function (interval, finish) {
+          finish(null, interval);
+        }, function (err, intervals) {
+          if (err) return callback(err, null);
+          var intervalIds = intervals.map(function (node) {
+            return node[2];
+          });
+          return callback(null, intervalIds);
+        });
+      });
+    }
+    node.model(node.constructor.modelName).findOne({_id: node._parent}, function (err, par) {
       if (err) return cb(err, null);
-      if (hasIntervalTree(par) && typeof this._left != 'undefined') {
-        par.intervalTree.queryInterval(this._left, this._right, function(interval) {
-          ids.push(interval[2]);
+      if (par && hasIntervalTree(par) && typeof node._left != 'undefined') {
+        fns.push(function (callback) {
+          queryInterval(par.intervalTree.root, node._left, node._right, function (interval, finish) {
+            finish(null, interval);
+          }, function (err, intervals) {
+            if (err) return callback(err, null);
+            var intervalIds = intervals.map(function (node) {
+              return node[2];
+            });
+            return callback(null, intervalIds);
+          });
         });
       }
-      return cb(null, ids);
+      if (fns.length > 0) {
+        async.parallel(fns, function (err, ids) {
+          if (ids.length == 1) {
+            ids = ids[0];
+          } else {
+            ids = ids.reduce(function (a, b) {
+              return a.concat(b);
+            });
+          }
+          return cb(null, ids);
+        });
+      } else {
+        return cb(null, ids);
+      }
     });
   }
 
   // retreive nodes overlapping a node
   schema.methods.overlapping = function (cb) {
-    getOverlappingIds(function(ids) {
+    getOverlappingIds(this, function(err, ids) {
+      if (err) return cb(err, null);
       var filter = { _id : { $in : ids } };
       return this.model(this.constructor.modelName).find(filter, cb);
     });
@@ -172,10 +296,12 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
   // retreive a node's children and overlapping intervals
   schema.methods.children = function (cb) {
     var ids = this._children;
-    getOverlappingIds(function(overlaps) {
+    var that = this;
+    getOverlappingIds(this, function (err, overlaps) {
+      if (err) return cb(err, null);
       ids = ids.concat(overlaps);
       var filter = { _id : { $in : ids } };
-      return this.model(this.constructor.modelName).find(filter, cb);
+      return that.model(that.constructor.modelName).find(filter, cb);
     });
   }
 
@@ -184,8 +310,8 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
   schema.methods.descendants = function (cb) {
     var descendants = [];
     var ids = this._children;
-    ids = ids.concat(getOverlappingIds());
-    getOverlappingIds(function(overlaps) {
+    getOverlappingIds(this, function (err, overlaps) {
+      if (err) return cb(err, null);
       ids = ids.concat(overlaps);
       var filter = { _id : { $in : ids } };
 
@@ -195,10 +321,13 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
         for (var i = 0; i < nodes.length; i++) {
           descendants.push(nodes[i]);
           ids = nodes[i]._children;
-          ids = ids.concat(getOverlappingIds());
-          filter = { _id : { $in : ids } };
-          this.model(this.constructor.modelName).find(filter, function (err, nodes) {
-            return recurse(err, nodes, cb);
+          getOverlappingIds(nodes[i], function (err, overlaps) {
+            if (err) return cb(err, null);
+            ids = ids.concat(overlaps);
+            filter = { _id : { $in : ids } };
+            nodes[i].model(nodes[i].constructor.modelName).find(filter, function (err, nodes) {
+              return recurse(err, nodes, cb);
+            });
           });
         }
       }
@@ -245,16 +374,20 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
           left = +range[0];
           right = +range[1];
         }
+        var contains = false;
         for (var i = 0; i < intervals.length; i++) {
           if (intervals[i][0] == left && intervals[i][1] == right) {
+            contains = true;
             node.model(node.constructor.modelName).findOne({ _id : intervals[i][2] }, function (err, node) {
               if (err) return cb(err, null);
               return followPath(node, segments, cb);
             });
           }
         }
-        segments.unshift(segment);
-        return cb(null, false, node, segments);
+        if (!contains) {
+          segments.unshift(segment);
+          return cb(null, false, node, segments);
+        }
       } else {
         segments.unshift(segment);
         return cb(null, false, node, segments);
@@ -276,21 +409,6 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
   schema.statics.findPath = function (model, path, cb) {
     var segments = path.split(DELIMITER);
     return followPath(model.root, segments, cb);
-    /*var stringComp = ["root"];
-    while (segments.length > 0) {
-      var segment = segments[0];
-      if (!isNumber(segment) && !isNumberRange(segment)) {
-        stringComp.push(segments.shift());
-      } else {
-        break;
-      }
-    }
-    stringComp = stringComp.join(DELIMITER);
-    model.findOne({name_path: stringComp}, function (err, node) {
-      if (err) return cb(err, null);
-      if (segments.length == 0) return cb(null, node);
-      return followPath(node, segments, cb);
-    });*/
   }
 
   var followAndCreatePath = function (last, remaining, cb) {
@@ -299,9 +417,17 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
     var node = new last.constructor({
       name: segment
     });
+    if (isNumber(segment)) {
+      node._left = +segment;
+      node._right = +segment;
+    } else if (isNumberRange(segment)) {
+      var range = isNumberRange(segment);
+      node._left = +range[0];
+      node._right = +range[1];
+    }
     last.addChild(node, function (err) {
       if (err) return cb(err, null);
-      followAndCreatePath(node, remaining, cb);
+      return followAndCreatePath(node, remaining, cb);
     });
   }
 

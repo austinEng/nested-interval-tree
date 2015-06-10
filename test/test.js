@@ -2,23 +2,14 @@ var mocha = require('mocha');
 var chai = require("chai");
 var should = chai.should();
 chai.use(require('chai-things'));
+chai.use(require('chaid'));
+chai.config.truncateThreshold = 0;
 var mongoose = require('mongoose');
 var Schema = mongoose.Schema;
 var NestedIntervalTree = require('../');
-
 var NodeSchema = new Schema();
 NodeSchema.plugin(NestedIntervalTree);
 var Node = mongoose.model('Node', NodeSchema);
-
-var verifyPath = function (segments, node, cb) {
-  if (segments.length == 0) return cb();
-  var segment = segments.pop();
-  segment.should.equal(node.name);
-  node.parent(function (err, parent) {
-    if (err) return cb(err);
-    verifyPath(segments, parent, cb);
-  });
-}
 
 describe('nested interval tree', function() {
   before(function(done) {
@@ -45,7 +36,7 @@ describe('nested interval tree', function() {
           Node.findOne({_id: node._parent}, function (err, par) {
             if (err) return done(err);
             should.exist(par);
-            par._children.should.include.include.something.that.deep.equals(node._id);
+            par._children.should.include.something.that.deep.equals(node._id);
             done();
           });
         })
@@ -61,7 +52,7 @@ describe('nested interval tree', function() {
           Node.findOne({_id: node._parent}, function (err, par) {
             if (err) return done(err);
             should.exist(par);
-            par.intervalTree.root.leftPoints.should.include.include.something.that.deep.equals([2, 2, node._id]);
+            par.intervalTree.root.leftPoints.should.include.something.that.deep.equals([2, 2, node._id]);
             done();
           });
         });
@@ -77,30 +68,46 @@ describe('nested interval tree', function() {
           Node.findOne({_id: node._parent}, function (err, par) {
             if (err) return done(err);
             should.exist(par);
-            par.intervalTree.root.leftPoints.should.include.include.something.that.deep.equals([2, 10, node._id]);
+            par.intervalTree.root.leftPoints.should.include.something.that.deep.equals([2, 10, node._id]);
             done();
           });
         });
       });
     });
   });
+
   describe('path creation', function() {
-    before(function(done) {
+    before(function (done) {
       mongoose.connection.collections['nodes'].drop( function (err) {
         if (err) throw err;
         Node.initialize(Node, function (err, root) {
           if (err) throw err;
-          done();
+          return done();
         });
       });
     });
+
+    var verifyPath = function (segments, node, cb) {
+      if (segments.length == 0) return cb();
+      var segment = segments.pop();
+      segment.should.equal(node.name);
+      node.parent(function (err, parent) {
+        if (err) return cb(err);
+        parent.children(function (err, children) {
+          if (err) return cb(err);
+          var childrenIds = children.map(function (node) {return node._id});
+          childrenIds.should.include.something.that.eqls(node._id);
+          return verifyPath(segments, parent, cb);
+        });
+      });
+    }
 
     it('simple path creation', function (done) {
       Node.createPath(Node, 'test', function (err, node) {
         if (err) return done(err);
         verifyPath('test'.split('\\'), node, function (err) {
           if (err) return done(err);
-          done();
+          return done();
         });
       });
     });
@@ -110,7 +117,7 @@ describe('nested interval tree', function() {
         if (err) return done(err);
         verifyPath('str1\\str2\\str3'.split('\\'), node, function (err) {
           if (err) return done(err);
-          done();
+          return done();
         });
       });
     });
@@ -120,7 +127,7 @@ describe('nested interval tree', function() {
         if (err) return done(err);
         verifyPath('4'.split('\\'), node, function (err) {
           if (err) return done(err);
-          done();
+          return done();
         });
       });
     });
@@ -164,6 +171,20 @@ describe('nested interval tree', function() {
         });
       });
     });
+  });
+
+  describe('path removal', function() {
+    before(function (done) {
+      mongoose.connection.collections['nodes'].drop( function (err) {
+        if (err) throw err;
+        Node.initialize(Node, function (err, root) {
+          if (err) throw err;
+          return done();
+        });
+      });
+    });
+
+
   });
 });
 
