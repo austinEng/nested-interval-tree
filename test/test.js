@@ -10,11 +10,12 @@ var NestedIntervalTree = require('../');
 var NodeSchema = new Schema();
 NodeSchema.plugin(NestedIntervalTree);
 var Node = mongoose.model('Node', NodeSchema);
+var async = require('async');
 
 describe('nested interval tree', function() {
   before(function(done) {
     mongoose.connect('mongodb://localhost/nested-interval-tree', function (err) {
-      if (err) throw err;
+      if (err) return done(err);
       done();
     });
   });
@@ -22,7 +23,7 @@ describe('nested interval tree', function() {
   describe('intial node creation', function() {
     beforeEach(function(done) {
       mongoose.connection.collections['nodes'].drop( function (err) {  // wipe database before testing
-        if (err) throw err;
+        if (err) return done(err);
         done();
       });
     });
@@ -173,6 +174,80 @@ describe('nested interval tree', function() {
     });
   });
 
+  describe('children and descendants', function() {
+    before(function (done) {
+      mongoose.connection.collections['nodes'].drop( function (err) {
+        if (err) throw err;
+        Node.initialize(Node, function (err, root) {
+          if (err) throw err;
+          async.series([
+            function (callback) {
+              Node.createPath(Node, 'this\\is\\a\\test\\path', function (err, node) {
+                if (err) return callback(err);
+                callback(null, node);
+              });
+            },
+            function (callback) {
+              Node.createPath(Node, 'this\\is\\another\\test\\path', function (err, node) {
+                if (err) return callback(err);
+                callback(null, node);
+              });
+            },
+            function (callback) {
+              Node.createPath(Node, 'test\\1-5', function (err, node) {
+                if (err) return callback(err);
+                callback(null, node);
+              });
+            },
+            function (callback) {
+              Node.createPath(Node, 'test\\2-18', function (err, node) {
+                if (err) return callback(err);
+                callback(null, node);
+              });
+            },
+            function (callback) {
+              Node.createPath(Node, 'test\\4', function (err, node) {
+                if (err) return callback(err);
+                callback(null, node);
+              });
+            },
+            function (callback) {
+              Node.createPath(Node, 'test\\1-5\\hey', function (err, node) {
+                if (err) return callback(err);
+                callback(null, node);
+              });
+            },
+            function (callback) {
+              Node.createPath(Node, 'test\\2-18\\what\'s', function (err, node) {
+                if (err) return callback(err);
+                callback(null, node);
+              });
+            },
+            function (callback) {
+              Node.createPath(Node, 'test\\4\\up', function (err, node) {
+                if (err) return callback(err);
+                callback(null, node);
+              });
+            }
+          ], function (err, res) {
+            if (err) throw err;
+            return done();
+          });
+        });
+      });
+    });
+
+    it ('simple children', function (done) {
+      Node.findPath(Node, 'this\\is', function (err, node) {
+        if (err) throw err;
+        node.children(function (err, nodes) {
+          nodes.length.should.equal(2);
+          done();
+        });
+      });
+    });
+  });
+
   describe('path removal', function() {
     before(function (done) {
       mongoose.connection.collections['nodes'].drop( function (err) {
@@ -183,8 +258,6 @@ describe('nested interval tree', function() {
         });
       });
     });
-
-
   });
 });
 

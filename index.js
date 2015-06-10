@@ -2,7 +2,7 @@
 
 var mongoose = require('mongoose');
 var Schema = mongoose.Schema;
-var IntervalTree = require('interval-tree-1d');
+var IntervalTree = require('./lib/interval-tree.js');
 var async = require('async');
 
 module.exports = exports = function nestedIntervalTree (schema, options) {
@@ -119,7 +119,7 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
           // create root document
           var node = new that.constructor({
             _root: true,
-            intervalTree: IntervalTree([]),
+            intervalTree: IntervalTree.create([]),
             name: "root"
           });
           node.save(function (err) {
@@ -131,8 +131,10 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
         }
       });
     } else {
-      this._path = this._id;
-      this.name_path = this.name;
+      if (this.isNew) {
+        this._path = this._id;
+        this.name_path = this.name;
+      }
       return next();
     }
   });
@@ -140,7 +142,7 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
   schema.statics.initialize = function (model, cb) {
     var node = new model({
       _root: true,
-      intervalTree: IntervalTree([]),
+      intervalTree: IntervalTree.create([]),
       name: "root"
     });
     node.save(function (err) {
@@ -182,7 +184,6 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
       return finishCB(null, nodes);
     });
   }
-
 
   var queryInterval = function(intervalNode, lo, hi, intervalCB, finishCB) {
     if (!intervalNode) {
@@ -234,6 +235,25 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
       });
       return finishCB(null, nodes);
     });
+  }
+
+  var getIntervals = function(intervalTree, cb) {
+    var intervals = [];
+    var recurse = function(node, cb) {
+      intervals = intervals.concat(node.leftPoints);
+      if (node.left) {
+        recurse(node.left);
+      }
+      if (node.right) {
+        recurse(node.right);
+      }
+    }
+    if (intervalTree.root) {
+      recurse(intervalTree.root);
+    } else {
+      return [];
+    }
+    return intervals;
   }
 
   var getOverlappingIds = function(node, cb) {
@@ -364,7 +384,7 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
     var range = isNumberRange(segment);
     if (number || range) {
       if (hasIntervalTree(node)) {
-        var intervals = node.intervalTree.intervals;
+        var intervals = getIntervals(node.intervalTree);
         var left;
         var right;
         if (number) {
@@ -393,16 +413,20 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
         return cb(null, false, node, segments);
       }
     } else {
+      var contains = false;
       for (var i = 0; i < node._childrenNames.length; i++) {
         if (node._childrenNames[i] == segment) {
-          node.model(node.constructor.modelName).findOne({ _id : this._children[i] }, function (err, node) {
+          contains = true;
+          node.model(node.constructor.modelName).findOne({ _id : node._children[i] }, function (err, node) {
             if (err) return cb(err, null);
             return followPath(node, segments, cb);
           });
         }
       }
-      segments.unshift(segment);
-      return cb(null, false, node, segments);
+      if (!contains) {
+        segments.unshift(segment);
+        return cb(null, false, node, segments);
+      }
     }
   }
 
@@ -415,7 +439,8 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
     if (remaining.length == 0) return cb(null, last);
     var segment = remaining.shift();
     var node = new last.constructor({
-      name: segment
+      name: segment,
+      intervalTree: IntervalTree.create([])
     });
     if (isNumber(segment)) {
       node._left = +segment;
@@ -454,9 +479,10 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
     if (isNumber(node.name) || isNumberRange(node.name)) {
       node._parent = this._id;
       if (!hasIntervalTree(this)) {
-        this.intervalTree = IntervalTree([]);
+        this.intervalTree = IntervalTree.create([]);
       }
-      this.intervalTree.insert([node._left, node._right, node._id]);
+      //this.intervalTree.insert([node._left, node._right, node._id]);
+      IntervalTree.tproto.insert.call(this.intervalTree, [node._left, node._right, node._id]);
       this.markModified('intervalTree');
     } else {
       node._parent = this._id;
