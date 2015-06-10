@@ -194,6 +194,12 @@ describe('nested interval tree', function() {
               });
             },
             function (callback) {
+              Node.createPath(Node, 'this\\is\\another\\test\\path\\yet\\again', function (err, node) {
+                if (err) return callback(err);
+                callback(null, node);
+              });
+            },
+            function (callback) {
               Node.createPath(Node, 'test\\1-5', function (err, node) {
                 if (err) return callback(err);
                 callback(null, node);
@@ -239,9 +245,40 @@ describe('nested interval tree', function() {
 
     it ('simple children', function (done) {
       Node.findPath(Node, 'this\\is', function (err, node) {
-        if (err) throw err;
+        if (err) return done(err);
         node.children(function (err, nodes) {
           nodes.length.should.equal(2);
+          done();
+        });
+      });
+    });
+
+    it ('numerical children', function (done) {
+      Node.findPath(Node, 'test', function (err, node) {
+        if (err) return done(err);
+        node.children(function (err, nodes) {
+          nodes.length.should.equal(3);
+          done();
+        });
+      });
+    });
+
+    it ('overlap children', function (done) {
+      Node.findPath(Node, 'test\\4', function (err, node) {
+        if (err) return done(err);
+        node.children(function (err, nodes) {
+          nodes.length.should.equal(3);
+          done();
+        });
+      });
+    });
+
+    it ('descendants', function (done) {
+      Node.findPath(Node, 'test', function (err, node) {
+        if (err) throw err;
+        node.descendants(function (err, nodes) {
+          if (err) return done(err);
+          nodes.length.should.equal(6);
           done();
         });
       });
