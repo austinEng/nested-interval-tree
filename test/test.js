@@ -104,9 +104,10 @@ describe('nested interval tree', function() {
     }
 
     it('simple path creation', function (done) {
-      Node.createPath(Node, 'test', function (err, node) {
+      var path = 'test';
+      Node.createPath(Node, path, function (err, node) {
         if (err) return done(err);
-        verifyPath('test'.split('\\'), node, function (err) {
+        verifyPath(path.split('\\'), node, function (err) {
           if (err) return done(err);
           return done();
         });
@@ -114,9 +115,10 @@ describe('nested interval tree', function() {
     });
 
     it('long string path', function (done) {
-      Node.createPath(Node, 'str1\\str2\\str3', function (err, node) {
+      var path = 'str1\\str2\\str3';
+      Node.createPath(Node, path, function (err, node) {
         if (err) return done(err);
-        verifyPath('str1\\str2\\str3'.split('\\'), node, function (err) {
+        verifyPath(path.split('\\'), node, function (err) {
           if (err) return done(err);
           return done();
         });
@@ -124,9 +126,10 @@ describe('nested interval tree', function() {
     });
 
     it('numerical path', function (done) {
-      Node.createPath(Node, '4', function (err, node) {
+      var path = '4';
+      Node.createPath(Node, path, function (err, node) {
         if (err) return done(err);
-        verifyPath('4'.split('\\'), node, function (err) {
+        verifyPath(path.split('\\'), node, function (err) {
           if (err) return done(err);
           return done();
         });
@@ -134,9 +137,10 @@ describe('nested interval tree', function() {
     });
 
     it('long numerical path', function (done) {
-      Node.createPath(Node, '4\\3\\2\\1', function (err, node) {
+      var path = '4\\3\\2\\1';
+      Node.createPath(Node, path, function (err, node) {
         if (err) return done(err);
-        verifyPath('4\\3\\2\\1'.split('\\'), node, function (err) {
+        verifyPath(path.split('\\'), node, function (err) {
           if (err) return done(err);
           done();
         });
@@ -144,9 +148,10 @@ describe('nested interval tree', function() {
     });
 
     it('numerical range path', function (done) {
-      Node.createPath(Node, '4-18', function (err, node) {
+      var path = '4-18';
+      Node.createPath(Node, path, function (err, node) {
         if (err) return done(err);
-        verifyPath('4-18'.split('\\'), node, function (err) {
+        verifyPath(path.split('\\'), node, function (err) {
           if (err) return done(err);
           done();
         });
@@ -154,9 +159,10 @@ describe('nested interval tree', function() {
     });
 
     it('long numerical range path', function (done) {
-      Node.createPath(Node, '1-3\\3-4\\6-7', function (err, node) {
+      var path = '1-3\\3-4\\6-7';
+      Node.createPath(Node, path, function (err, node) {
         if (err) return done(err);
-        verifyPath('1-3\\3-4\\6-7'.split('\\'), node, function (err) {
+        verifyPath(path.split('\\'), node, function (err) {
           if (err) return done(err);
           done();
         });
@@ -164,9 +170,10 @@ describe('nested interval tree', function() {
     });
 
     it('mixed path', function (done) {
-      Node.createPath(Node, '1-3\\test\\4\\asdf\\jkl\\2-14', function (err, node) {
+      var path = '1-3\\test\\4\\asdf\\jkl\\2-14';
+      Node.createPath(Node, path, function (err, node) {
         if (err) return done(err);
-        verifyPath('1-3\\test\\4\\asdf\\jkl\\2-14'.split('\\'), node, function (err) {
+        verifyPath(path.split('\\'), node, function (err) {
           if (err) return done(err);
           done();
         });
@@ -174,11 +181,12 @@ describe('nested interval tree', function() {
     });
 
     it('findOrCreate - existing', function (done) {
-      Node.createPath(Node, '1-3\\test\\4\\asdf\\jkl\\2-14\\hi', function (err, node) {
+      var path = '1-3\\test\\4\\asdf\\jkl\\2-14\\hi';
+      Node.createPath(Node, path, function (err, node) {
         if (err) return done(err);
-        Node.findOrCreatePath(Node, '1-3\\test\\4\\asdf\\jkl\\2-14\\hi', function (err, found) {
+        Node.findOrCreatePath(Node, path, function (err, found) {
           node._id.should.eql(found._id);
-          verifyPath('1-3\\test\\4\\asdf\\jkl\\2-14\\hi'.split('\\'), node, function (err) {
+          verifyPath(path.split('\\'), node, function (err) {
             if (err) return done(err);
             done();
           });
@@ -187,8 +195,9 @@ describe('nested interval tree', function() {
     });
 
     it('findOrCreate - new', function (done) {
-      Node.findOrCreatePath(Node, '1-3\\test\\4\\asdf\\jkl\\5\\hey', function (err, node) {
-        verifyPath('1-3\\test\\4\\asdf\\jkl\\5\\hey'.split('\\'), node, function (err) {
+      var path = '1-3\\test\\4\\asdf\\jkl\\5\\hey';
+      Node.findOrCreatePath(Node, path, function (err, node) {
+        verifyPath(path.split('\\'), node, function (err) {
           if (err) return done(err);
           done();
         });
@@ -319,9 +328,10 @@ describe('nested interval tree', function() {
     });
 
     it ('bubbles up if parent becomes empty', function (done) {
-      Node.createPath(Node, 'this\\is\\3-4\\a\\test\\path\\4\\1-3\\2\\numbers', function (err, node) {
+      var path = 'this\\is\\3-4\\a\\test\\path\\4\\1-3\\2\\numbers';
+      Node.createPath(Node, path, function (err, node) {
         if (err) return done(err);
-        Node.removePath(Node, 'this\\is\\3-4\\a\\test\\path\\4\\1-3\\2\\numbers', function (err) {
+        Node.removePath(Node, path, function (err) {
           if (err) return done(err);
           Node.root._children.length.should.equal(0);
           done();
