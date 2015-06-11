@@ -172,6 +172,28 @@ describe('nested interval tree', function() {
         });
       });
     });
+
+    it('findOrCreate - existing', function (done) {
+      Node.createPath(Node, '1-3\\test\\4\\asdf\\jkl\\2-14\\hi', function (err, node) {
+        if (err) return done(err);
+        Node.findOrCreatePath(Node, '1-3\\test\\4\\asdf\\jkl\\2-14\\hi', function (err, found) {
+          node._id.should.eql(found._id);
+          verifyPath('1-3\\test\\4\\asdf\\jkl\\2-14\\hi'.split('\\'), node, function (err) {
+            if (err) return done(err);
+            done();
+          });
+        });
+      });
+    });
+
+    it('findOrCreate - new', function (done) {
+      Node.findOrCreatePath(Node, '1-3\\test\\4\\asdf\\jkl\\5\\hey', function (err, node) {
+        verifyPath('1-3\\test\\4\\asdf\\jkl\\5\\hey'.split('\\'), node, function (err) {
+          if (err) return done(err);
+          done();
+        });
+      });
+    });
   });
 
   describe('children and descendants', function() {
