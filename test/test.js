@@ -295,6 +295,17 @@ describe('nested interval tree', function() {
         });
       });
     });
+
+    it ('bubbles up if parent becomes empty', function (done) {
+      Node.createPath(Node, 'this\\is\\3-4\\a\\test\\path\\4\\1-3\\2\\numbers', function (err, node) {
+        if (err) return done(err);
+        Node.removePath(Node, 'this\\is\\3-4\\a\\test\\path\\4\\1-3\\2\\numbers', function (err) {
+          if (err) return done(err);
+          Node.root._children.length.should.equal(0);
+          done();
+        });
+      });
+    });
   });
 });
 

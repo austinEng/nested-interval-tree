@@ -139,6 +139,12 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
     }
   });
 
+  schema.post('save', function (next) {
+    if (this._root) {
+      this.model(this.constructor.modelName).root = this;
+    }
+  });
+
   schema.statics.initialize = function (model, cb) {
     var node = new model({
       _root: true,
@@ -529,26 +535,27 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
   schema.statics.removePath = function (model, path, cb) {
     schema.statics.findPath(model, path, function (err, node, last, remaining) {
       if (err) return cb(err);
-      if (node) return node.remove(cb);
+      if (node) return node.removeNode(cb);
     });
   }
 
   var countChildren = function(node) {
-    count = 0;
+    var count = 0;
     count += node._children.length;
-    if (hasIntervalTree(node)) {
+    if (hasIntervalTree(node) && node.intervalTree.root) {
       count += node.intervalTree.root.count;
     }
     return count;
   }
 
   schema.methods.removeNode = function (cb) {
-    this.model(this.constructor.modelName).findOne({ _id : this._parent }, function (err, par) {
+    var self = this;
+    self.model(self.constructor.modelName).findOne({ _id : self._parent }, function (err, par) {
       if (err) return cb(err);
-      if (isNumber(this.name) || isNumberRange(this.isNumberRange)) {
-        par.intervalTree.remove([this._left, this._right, this._id]);
+      if (isNumber(self.name) || isNumberRange(self.name)) {
+        var status = IntervalTree.tproto.remove.call(par.intervalTree, [self._left, self._right, self._id]);
         par.markModified('intervalTree');
-        this.remove(function(err) {
+        self.remove(function(err) {
           if (err) return cb(err);
           if (countChildren(par) == 0) {
             par.removeNode(cb);
@@ -560,12 +567,12 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
           }
         });
       } else {
-        var index = par._childrenNames.indexOf(this.name);
+        var index = par._childrenNames.indexOf(self.name);
         par._childrenNames.splice(index, 1);
         par._children.splice(index, 1);
-        this.remove(function(err) {
+        self.remove(function(err) {
           if (err) return cb(err);
-          if (countChildren(par) == 0) {
+          if (countChildren(par) == 0 && !par._root) {
             par.removeNode(cb);
           } else {
             par.save(function (err) {
