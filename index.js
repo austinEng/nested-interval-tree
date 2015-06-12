@@ -14,10 +14,6 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
     },
     _children: [Schema.ObjectId], // children nodes
     _childrenNames: [String],
-    _intervalTreeParent: {
-      type: Schema.ObjectId,
-      index: true
-    },
     _left: Number,
     _right: Number,
     intervalTree: {},
