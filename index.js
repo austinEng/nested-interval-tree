@@ -497,7 +497,6 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
       if (!hasIntervalTree(this)) {
         this.intervalTree = IntervalTree.create([]);
       }
-      //this.intervalTree.insert([node._left, node._right, node._id]);
       IntervalTree.tproto.insert.call(this.intervalTree, [node._left, node._right, node._id]);
       this.markModified('intervalTree');
     } else {
@@ -536,6 +535,7 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
     schema.statics.findPath(model, path, function (err, node, last, remaining) {
       if (err) return cb(err);
       if (node) return node.removeNode(cb);
+      cb();
     });
   }
 
@@ -567,6 +567,7 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
           }
         });
       } else {
+        if (!par) { return cb(); }
         var index = par._childrenNames.indexOf(self.name);
         par._childrenNames.splice(index, 1);
         par._children.splice(index, 1);

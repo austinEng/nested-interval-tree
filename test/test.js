@@ -343,40 +343,68 @@ describe('nested interval tree', function() {
   describe('performance', function () {
     var insertFns = [];
     var findFns = [];
-    var strings = ['this', 'is', 'a', 'test', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
-    var trials = 500;
+    var deleteFns = [];
+    var strings = ['this', 'is', 'a', 'test', 'more', 'stuff', 'yes'];
+    var nums = [1,2,3,4,5,6,7,8,9,10];
+    var trials = 1000;
     var maxLen = 10;
 
     before(function (done) {
+      var generatePath = function() {
+        var pathLength = Math.floor(Math.random() * maxLen + 1);
+        var path = [];
+        for (var j = 0; j < pathLength; j++) {
+          var str;
+          if (Math.random() > 0.5) {
+            str = strings[Math.floor(Math.random()*strings.length)];
+          } else {
+            if (Math.random() > 0.5) {
+              str = nums[Math.floor(Math.random()*nums.length)].toString();
+            } else {
+              num1 = nums[Math.floor(Math.random()*nums.length)];
+              num2 = nums[Math.floor(Math.random()*nums.length)];
+              if (num1 > num2) {
+                var temp = num1;
+                num1 = num2;
+                num2 = temp;
+                str = num1 + '-' + num2;
+              }
+            }
+          }
+          path.push(str);
+        }
+        path = path.join('\\');
+        return path;
+      }
       mongoose.connection.collections['nodes'].drop( function (err) {
         if (err) throw err;
         Node.initialize(Node, function (err, root) {
           if (err) throw err;
 
+          var paths = [];
           for (var i = 0; i < trials; i++) {
-            var pathLength = Math.floor(Math.random() * maxLen + 1);
-            var path = [];
-            for (var j = 0; j < pathLength; j++) {
-              var str = strings[Math.floor(Math.random()*strings.length)];
-              path.push(str);
-            }
-            path = path.join('\\');
             insertFns.push(function (callback) {
+              var path = generatePath();
+              paths.push(path);
               Node.findOrCreatePath(Node, path, function (err, node) {
+                if (err) throw err;
+                callback();
+              });
+            });
+          }
+          for (var i = 0; i < trials; i++) {
+            deleteFns.push(function (callback) {
+              var path = paths.pop();
+              Node.removePath(Node, path, function (err) {
+                if (err) throw err;
                 callback();
               });
             });
           }
 
           for (var i = 0; i < trials; i++) {
-            var pathLength = Math.floor(Math.random() * maxLen + 1);
-            var path = [];
-            for (var j = 0; j < pathLength; j++) {
-              var str = strings[Math.floor(Math.random()*strings.length)];
-              path.push(str);
-            }
-            path = path.join('\\');
             findFns.push(function (callback) {
+              var path = generatePath();
               Node.findPath(Node, path, function (err, node) {
                 callback();
               });
@@ -389,6 +417,7 @@ describe('nested interval tree', function() {
     });
 
     it (trials + ' insertions in series', function (done) {
+      this.timeout(100000);
       async.series(insertFns, function (err, res) {
         if (err) return done(err);
         done();
@@ -396,6 +425,7 @@ describe('nested interval tree', function() {
     });
 
     it (trials + ' lookups in series', function (done) {
+      this.timeout(100000);
       async.series(findFns, function (err, res) {
         if (err) return done(err);
         done();
@@ -403,7 +433,16 @@ describe('nested interval tree', function() {
     });
 
     it (trials + ' lookups in parallel', function (done) {
+      this.timeout(100000);
       async.parallel(findFns, function (err, res) {
+        if (err) return done(err);
+        done();
+      });
+    });
+
+    it (trials + ' deletions in series', function (done) {
+      this.timeout(100000);
+      async.series(deleteFns, function (err, res) {
         if (err) return done(err);
         done();
       });
