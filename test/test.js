@@ -339,5 +339,75 @@ describe('nested interval tree', function() {
       });
     });
   });
+
+  describe('performance', function () {
+    var insertFns = [];
+    var findFns = [];
+    var strings = ['this', 'is', 'a', 'test', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
+    var trials = 500;
+    var maxLen = 10;
+
+    before(function (done) {
+      mongoose.connection.collections['nodes'].drop( function (err) {
+        if (err) throw err;
+        Node.initialize(Node, function (err, root) {
+          if (err) throw err;
+
+          for (var i = 0; i < trials; i++) {
+            var pathLength = Math.floor(Math.random() * maxLen + 1);
+            var path = [];
+            for (var j = 0; j < pathLength; j++) {
+              var str = strings[Math.floor(Math.random()*strings.length)];
+              path.push(str);
+            }
+            path = path.join('\\');
+            insertFns.push(function (callback) {
+              Node.findOrCreatePath(Node, path, function (err, node) {
+                callback();
+              });
+            });
+          }
+
+          for (var i = 0; i < trials; i++) {
+            var pathLength = Math.floor(Math.random() * maxLen + 1);
+            var path = [];
+            for (var j = 0; j < pathLength; j++) {
+              var str = strings[Math.floor(Math.random()*strings.length)];
+              path.push(str);
+            }
+            path = path.join('\\');
+            findFns.push(function (callback) {
+              Node.findPath(Node, path, function (err, node) {
+                callback();
+              });
+            });
+          }
+
+          return done();
+        });
+      });
+    });
+
+    it (trials + ' insertions in series', function (done) {
+      async.series(insertFns, function (err, res) {
+        if (err) return done(err);
+        done();
+      });
+    });
+
+    it (trials + ' lookups in series', function (done) {
+      async.series(findFns, function (err, res) {
+        if (err) return done(err);
+        done();
+      });
+    });
+
+    it (trials + ' lookups in parallel', function (done) {
+      async.parallel(findFns, function (err, res) {
+        if (err) return done(err);
+        done();
+      });
+    });
+  });
 });
 
