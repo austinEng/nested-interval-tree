@@ -38,7 +38,7 @@ mongoose.connect('mongodb://localhost/nested-interval-tree-test');
 
 var TagSchema = new Schema();
 
-TagSchema.plugin(NestedIntenrvalTree, {
+TagSchema.plugin(NestedIntervalTree, {
   delimiter: '/'      // default: '\\'
 });
 
