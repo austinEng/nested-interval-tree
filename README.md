@@ -3,6 +3,7 @@ A mongoose plugin implementing nested interval trees
 
 ## What is it?
 Stores nodes at locations in a tree specified by delimited strings
+
 Strings with numerical paths are stored in interval trees
 
 #### Example
@@ -12,7 +13,7 @@ Strings with numerical paths are stored in interval trees
 
 `root/1`, `root/2`, `root/test/3`, `root/test/4` have numerical paths. '1' and '2' are stored in root's interval tree while '3' and '4' are stored in test's interval tree
 
-'root/2.3-8.9' has a numerical range which is also stored in root's interval tree
+`root/2.3-8.9` has a numerical range which is also stored in root's interval tree
 
 All of these types can be mixed together so `root/2/test/3-4/4/5/hello/1-2/3-4/bye` is a valid path
 
@@ -71,17 +72,20 @@ tag.overlapping(function (err, nodes) {
   // do stuff
 });
 
-// retrieve all direct children and the nodes overlapping this node in the same interval tree
+// retrieve all direct children and the nodes overlapping this node
+// in the same interval tree
 tag.children(function (err, nodes) {
   // do stuff
 });
 
-// retrieve all descendents. This includes children, overlapping nodes, all their children and overlapping nodes, etc.
+// retrieve all descendents. This includes children, overlapping nodes, all their
+// children and overlapping nodes, etc.
 tag.descendants(function (err, nodes) {
   // do stuff
 });
 
-// retrieve a node's parent. For interval trees, this is not the containing interval but rather the node to which the interval tree belongs
+// retrieve a node's parent. For numerical nodes, this is not the containing interval
+// but rather the node to which the interval tree belongs
 tag.parent(function (err, node) {
   // do stuff
 });
