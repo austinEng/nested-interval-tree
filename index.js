@@ -552,8 +552,9 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
     var self = this;
     self.model(self.constructor.modelName).findOne({ _id : self._parent }, function (err, par) {
       if (err) return cb(err);
+      if (!par) { return cb(); }
       if (isNumber(self.name) || isNumberRange(self.name)) {
-        var status = IntervalTree.tproto.remove.call(par.intervalTree, [self._left, self._right, self._id]);
+        IntervalTree.tproto.remove.call(par.intervalTree, [self._left, self._right, self._id]);
         par.markModified('intervalTree');
         self.remove(function(err) {
           if (err) return cb(err);
@@ -567,7 +568,6 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
           }
         });
       } else {
-        if (!par) { return cb(); }
         var index = par._childrenNames.indexOf(self.name);
         par._childrenNames.splice(index, 1);
         par._children.splice(index, 1);

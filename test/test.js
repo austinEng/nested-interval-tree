@@ -346,7 +346,7 @@ describe('nested interval tree', function() {
     var deleteFns = [];
     var strings = ['this', 'is', 'a', 'test', 'more', 'stuff', 'yes'];
     var nums = [1,2,3,4,5,6,7,8,9,10];
-    var trials = 1000;
+    var trials = 10000;
     var maxLen = 10;
 
     before(function (done) {
@@ -417,7 +417,7 @@ describe('nested interval tree', function() {
     });
 
     it (trials + ' insertions in series', function (done) {
-      this.timeout(100000);
+      this.timeout(1000000);
       async.series(insertFns, function (err, res) {
         if (err) return done(err);
         done();
