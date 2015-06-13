@@ -156,8 +156,9 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
 
   function reportLeftRange(arr, hi, intervalCB, finishCB) {
     var fns = [];
-    for(var i=0; i<arr.length && arr[i][0] <= hi; ++i) {
-      fns.push(function (finish) { intervalCB(arr[i], finish)});
+    var array = arr.slice(0);
+    for(var i=0; i<arr.length && arr[i][0] <= hi; i++) {
+      fns.push(function (finish) { intervalCB(array.pop(), finish)});
     }
     async.parallel(fns, function (err, nodes) {
       if (err) return finishCB(err, null);
@@ -167,8 +168,9 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
 
   function reportRightRange(arr, lo, intervalCB, finishCB) {
     var fns = [];
-    for(var i=arr.length-1; i>=0 && arr[i][1] >= lo; --i) {
-      fns.push(function (finish) { intervalCB(arr[i], finish)});
+    var array = arr.slice(0);
+    for(var i=arr.length-1; i>=0 && arr[i][1] >= lo; i--) {
+      fns.push(function (finish) { intervalCB(array.pop(), finish)});
     }
     async.parallel(fns, function (err, nodes) {
       if (err) return finishCB(err, null);
@@ -178,8 +180,9 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
 
   function reportRange(arr, intervalCB, finishCB) {
     var fns = [];
-    for(var i=0; i<arr.length; ++i) {
-      fns.push(function (finish) {intervalCB(arr[i-1], finish)});
+    var array = arr.slice(0);
+    for(var i=0; i<arr.length; i++) {
+      fns.push(function (finish) {intervalCB(array.pop(), finish)});
     }
     async.parallel(fns, function (err, nodes) {
       if (err) return finishCB(err, null);
@@ -258,6 +261,40 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
     return intervals;
   }
 
+  var getOverlaps = function (node, cb) {
+    var ids = [];
+    var fns = [];
+    node.model(node.constructor.modelName).findOne({_id: node._parent}, function (err, par) {
+      if (err) return cb(err, null);
+      if (par && hasIntervalTree(par) && typeof node._left != 'undefined') {
+        fns.push(function (callback) {
+          var intervals = [];
+          if (par.intervalTree.root) {
+            queryInterval(par.intervalTree.root, node._left, node._right, function (interval, finish) {
+              finish(null, interval);
+            }, function (err, intervals) {
+              var intervalIds = intervals.map(function (interval) {
+                return interval[2];
+              });
+              return callback(null, intervalIds);
+            });
+          }
+
+        });
+      }
+      if (fns.length > 0) {
+        async.parallel(fns, function (err, ids) {
+          ids = ids.reduce(function (a, b) {
+            return a.concat(b);
+          });
+          return cb(null, ids);
+        });
+      } else {
+        return cb(null, ids);
+      }
+    });
+  }
+
   var getOverlappingIds = function(node, cb) {
     var ids = [];
     var fns = [];
@@ -306,10 +343,11 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
 
   // retreive nodes overlapping a node
   schema.methods.overlapping = function (cb) {
-    getOverlappingIds(this, function(err, ids) {
+    var that = this;
+    getOverlaps(this, function(err, ids) {
       if (err) return cb(err, null);
       var filter = { _id : { $in : ids, $ne: that._id } };
-      return this.model(this.constructor.modelName).find(filter, cb);
+      return that.model(that.constructor.modelName).find(filter, cb);
     });
   }
 
@@ -578,6 +616,27 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
             });
           }
         });
+      }
+    });
+  }
+
+  schema.methods.getRelated = function (cb) {
+    var relatedNodes = [];
+    var self = this;
+    this.overlapping(function (err, nodes) {
+      if (err) return cb(err, null);
+      relatedNodes = relatedNodes.concat(nodes);
+      if (self._parent) {
+        self.parent(function (err, parent) {
+          relatedNodes.push(parent);
+          if (err) return cb(err, null);
+          parent.getRelated(function (err, nodes) {
+            relatedNodes = relatedNodes.concat(nodes);
+            return cb(null, relatedNodes);
+          });
+        });
+      } else {
+        return cb(null, relatedNodes);
       }
     });
   }

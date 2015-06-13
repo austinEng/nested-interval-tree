@@ -105,5 +105,10 @@ tag.removeNode(function (err) {
   // do stuff
 });
 
+// get overlapping nodes, all ancestors and their overlapping nodes
+tag.getRelated(function (err, nodes) {
+  // do stuff
+});
+
 var Tag = mongoose.model('Tag', TagSchema);
 ```
