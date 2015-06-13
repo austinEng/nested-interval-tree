@@ -419,6 +419,90 @@ describe('nested interval tree', function() {
     });
   });
 
+  describe('streaming', function () {
+    before(function (done) {
+      mongoose.connection.collections['nodes'].drop( function (err) {
+        if (err) throw err;
+        Node.initialize(Node, function (err, root) {
+          if (err) throw err;
+          async.series([
+            function (callback) {
+              Node.createPath(Node, 'this\\3\\a\\test\\3', function (err, node) {
+                if (err) return callback(err);
+                callback(null, node);
+              });
+            },
+            function (callback) {
+              Node.createPath(Node, 'this\\3\\a\\test\\1-4', function (err, node) {
+                if (err) return callback(err);
+                callback(null, node);
+              });
+            },
+            function (callback) {
+              Node.createPath(Node, 'this\\3\\a\\test\\2-5', function (err, node) {
+                if (err) return callback(err);
+                callback(null, node);
+              });
+            },
+            function (callback) {
+              Node.createPath(Node, 'this\\1-5', function (err, node) {
+                if (err) return callback(err);
+                callback(null, node);
+              });
+            },
+            function (callback) {
+              Node.createPath(Node, 'this\\2-18', function (err, node) {
+                if (err) return callback(err);
+                callback(null, node);
+              });
+            },
+            function (callback) {
+              Node.createPath(Node, 'this\\4', function (err, node) {
+                if (err) return callback(err);
+                callback(null, node);
+              });
+            },
+            function (callback) {
+              Node.createPath(Node, 'this\\1-5\\hey', function (err, node) {
+                if (err) return callback(err);
+                callback(null, node);
+              });
+            },
+            function (callback) {
+              Node.createPath(Node, 'this\\4\\up', function (err, node) {
+                if (err) return callback(err);
+                callback(null, node);
+              });
+            }
+          ], function (err, res) {
+            if (err) throw err;
+            return done();
+          });
+        });
+      });
+    });
+
+    it ('get related', function (done) {
+      Node.findPath(Node, 'this\\3\\a\\test\\3', function (err, node) {
+        var count = 0;
+        if (err) return done(err);
+        node.streamRelated(function (err, nodes) {
+          count += nodes.length;
+          if (err) return done(err);
+        }, function (err, nodes) {
+          if (err) return done(err);
+          count.should.equal(9);
+          nodes.length.should.equal(9);
+          nodes = nodes.map(function (node) {
+            return node.name;
+          });
+          nodes.should.eql([ '1-4', '2-5', 'test', 'a', '3', '1-5', '2-18', 'this', 'root' ]);
+          done();
+        });
+      })
+    });
+  });
+
   describe('performance', function () {
     var insertFns = [];
     var findFns = [];

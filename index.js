@@ -631,12 +631,37 @@ module.exports = exports = function nestedIntervalTree (schema, options) {
           relatedNodes.push(parent);
           if (err) return cb(err, null);
           parent.getRelated(function (err, nodes) {
+            if (err) return cb(err, null);
             relatedNodes = relatedNodes.concat(nodes);
             return cb(null, relatedNodes);
           });
         });
       } else {
         return cb(null, relatedNodes);
+      }
+    });
+  }
+
+  schema.methods.streamRelated = function (eachCB, doneCB) {
+    var relatedNodes = [];
+    var self = this;
+    this.overlapping(function (err, nodes) {
+      if (err) eachCB(err);
+      eachCB(null, nodes);
+      relatedNodes = relatedNodes.concat(nodes);
+      if (self._parent) {
+        self.parent(function (err, parent) {
+          if (err) eachCB(err);
+          eachCB(null, [parent]);
+          relatedNodes.push(parent);
+          parent.streamRelated(eachCB, function (err, nodes) {
+            if (err) return doneCB(err);
+            relatedNodes = relatedNodes.concat(nodes);
+            return doneCB(null, relatedNodes);
+          });
+        });
+      } else {
+        return doneCB(null, relatedNodes);
       }
     });
   }
